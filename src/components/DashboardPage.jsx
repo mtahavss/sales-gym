@@ -32,6 +32,7 @@ export default function DashboardPage({ user, profile, onSignOut }) {
 
   useEffect(() => {
     window.localStorage.setItem("dashboard_theme", themeMode);
+    console.log("test",themeMode)
   }, [themeMode]);
 
   useEffect(() => {
