@@ -1,0 +1,66 @@
+/** B2C occupation choices (deduplicated, alphabetical). */
+export const B2C_OCCUPATION_OPTIONS = [
+  { value: "", label: "Select occupation" },
+  { value: "accountant", label: "Accountant" },
+  { value: "business-owner", label: "Business Owner" },
+  { value: "chef", label: "Chef" },
+  { value: "construction-worker", label: "Construction Worker" },
+  { value: "doctor", label: "Doctor" },
+  { value: "electrician", label: "Electrician" },
+  { value: "financial-advisor", label: "Financial Advisor" },
+  { value: "graphic-designer", label: "Graphic Designer" },
+  { value: "healthcare-administrator", label: "Healthcare Administrator" },
+  { value: "homeowner", label: "Homeowner" },
+  { value: "lawyer", label: "Lawyer" },
+  { value: "marketing-manager", label: "Marketing Manager" },
+  { value: "mechanic", label: "Mechanic" },
+  { value: "nurse", label: "Nurse" },
+  { value: "office-manager", label: "Office Manager" },
+  { value: "plumber", label: "Plumber" },
+  { value: "police-officer", label: "Police Officer" },
+  { value: "real-estate-agent", label: "Real Estate Agent" },
+  { value: "retail-worker", label: "Retail Worker" },
+  { value: "retired", label: "Retired" },
+  { value: "sales-representative", label: "Sales Representative" },
+  { value: "software-engineer", label: "Software Engineer" },
+  { value: "stay-at-home-parent", label: "Stay-at-home Parent" },
+  { value: "student", label: "Student" },
+  { value: "teacher", label: "Teacher" },
+];
+
+export const B2C_MONTHLY_INCOME_OPTIONS = [
+  { value: "", label: "Select monthly income range" },
+  { value: "under-2000", label: "Under $2,000" },
+  { value: "2000-3999", label: "$2,000 – $3,999" },
+  { value: "4000-5999", label: "$4,000 – $5,999" },
+  { value: "6000-7999", label: "$6,000 – $7,999" },
+  { value: "8000-9999", label: "$8,000 – $9,999" },
+  { value: "10000-plus", label: "$10,000+" },
+  { value: "prefer-not", label: "Prefer not to say" },
+];
+
+/**
+ * B2C objection themes (Personal Profile step). Merged from design lists; each label once.
+ */
+export const B2C_OBJECTION_THEME_OPTIONS = [
+  { value: "too-expensive", label: "Too expensive" },
+  { value: "cant-afford-now", label: "Can't afford it right now" },
+  { value: "not-right-time", label: "Not the right time" },
+  { value: "need-to-think", label: "Need to think about it" },
+  { value: "consult-spouse-partner", label: "Need to consult spouse/partner" },
+  { value: "bad-experience-before", label: "Had bad experience before" },
+  { value: "scammed-before", label: "I've been scammed before" },
+  { value: "dont-believe-works", label: "Don't believe it will work" },
+  { value: "no-door-salespeople", label: "I don't open the door to salespeople" },
+  { value: "already-have-similar", label: "I already have something similar" },
+  { value: "loyal-other-brand", label: "I'm loyal to another brand" },
+  { value: "research-first", label: "I'll need to research this first" },
+  { value: "dont-trust-quality", label: "I don't trust the quality" },
+  { value: "need-more-proof", label: "I need to see more proof" },
+  { value: "too-busy", label: "I'm too busy right now" },
+  { value: "moving-soon", label: "We're moving soon" },
+  { value: "renting-not-homeowner", label: "I'm renting, not the homeowner" },
+  { value: "pay-bills-first", label: "I need to pay other bills first" },
+  { value: "not-interested-at-all", label: "I'm not interested at all" },
+  { value: "dont-make-decisions", label: "I don't make these decisions" },
+];

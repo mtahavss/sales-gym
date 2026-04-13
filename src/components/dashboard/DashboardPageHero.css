@@ -1,0 +1,228 @@
+/* Shared page hero banner (matches AI Roleplay overview style) */
+.db-page-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(130deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%);
+  border: 1px solid #fcd9b8;
+  border-radius: 18px;
+  padding: 1.6rem 1.75rem;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.db-page-hero-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+.db-page-hero-label {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #c2410c;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+  opacity: 0.85;
+}
+
+.db-page-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1c0f06;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.db-page-subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.82rem;
+  color: #7c4a2a;
+  max-width: 30rem;
+  line-height: 1.5;
+}
+
+.db-page-subtitle strong {
+  font-weight: 700;
+  color: #5c3d24;
+}
+
+.db-page-help-link {
+  display: inline-block;
+  margin-top: 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #c2410c;
+  text-decoration: none;
+}
+
+.db-page-help-link:hover {
+  text-decoration: underline;
+}
+
+.db-page-hero-right {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.db-page-hero-art-svg {
+  position: absolute;
+  right: 1.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 240px;
+  height: 130px;
+  color: #ea580c;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.db-page-hero-actions {
+  position: absolute;
+  bottom: 1.25rem;
+  right: 1.75rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.db-page-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  border-radius: 12px;
+  padding: 0.62rem 1.15rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 18px rgba(194, 65, 12, 0.3);
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  letter-spacing: 0.01em;
+}
+
+.db-page-primary-btn:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 6px 22px rgba(194, 65, 12, 0.38);
+  transform: translateY(-1px);
+}
+
+.db-page-primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(194, 65, 12, 0.15);
+}
+
+.db-page-primary-btn:disabled:hover {
+  filter: none;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(194, 65, 12, 0.15);
+}
+
+.db-page-primary-btn svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+.db-page-hero-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid rgba(194, 65, 12, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #c2410c;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.db-page-hero-icon-btn:hover {
+  background: #fff;
+  border-color: #c2410c;
+}
+
+.db-page-hero-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 1024px) {
+  .db-page-hero {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.2rem 1.1rem 4.5rem;
+  }
+
+  .db-page-hero-art-svg {
+    display: none;
+  }
+
+  .db-page-hero-actions {
+    bottom: 1rem;
+    right: 1.1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .db-page-title {
+    font-size: clamp(1.28rem, 4.5vw, 1.65rem);
+  }
+}
+
+/* Dark mode */
+.dashboard-shell.is-dark .db-page-hero {
+  background: #1a1a1a;
+  border-color: #333;
+}
+
+.dashboard-shell.is-dark .db-page-hero-label {
+  color: #fb923c;
+}
+
+.dashboard-shell.is-dark .db-page-hero-art-svg {
+  color: #ea580c;
+}
+
+.dashboard-shell.is-dark .db-page-title {
+  color: #fafafa;
+}
+
+.dashboard-shell.is-dark .db-page-subtitle {
+  color: #a3a3a3;
+}
+
+.dashboard-shell.is-dark .db-page-subtitle strong {
+  color: #d4d4d4;
+}
+
+.dashboard-shell.is-dark .db-page-help-link {
+  color: #fb923c;
+}
+
+.dashboard-shell.is-dark .db-page-hero-icon-btn {
+  background: #262626;
+  border-color: #404040;
+  color: #fb923c;
+}
+
+.dashboard-shell.is-dark .db-page-hero-icon-btn:hover {
+  background: #333;
+  border-color: #525252;
+}

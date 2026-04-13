@@ -1,0 +1,119 @@
+/* Remove prospect confirmation — dashboard warm orange CTA (matches AI Roleplay / primary buttons) */
+
+.dpc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1220;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.dpc-modal {
+  width: min(440px, 100%);
+  padding: 1.75rem 1.75rem 1.5rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e2e8f0;
+}
+
+.dpc-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.dpc-body {
+  margin: 0 0 1.75rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.dpc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.dpc-btn {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.dpc-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.dpc-btn--cancel {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+}
+
+.dpc-btn--cancel:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.dpc-btn--remove {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+  box-shadow: 0 2px 10px rgba(194, 65, 12, 0.35);
+}
+
+.dpc-btn--remove:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(194, 65, 12, 0.45);
+  filter: brightness(1.03);
+}
+
+/* Dark */
+.dashboard-shell.is-dark .dpc-overlay {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.dashboard-shell.is-dark .dpc-modal {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.dashboard-shell.is-dark .dpc-title {
+  color: #f1f5f9;
+}
+
+.dashboard-shell.is-dark .dpc-body {
+  color: #94a3b8;
+}
+
+.dashboard-shell.is-dark .dpc-btn--cancel {
+  background: #0f172a;
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+.dashboard-shell.is-dark .dpc-btn--cancel:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+.dashboard-shell.is-dark .dpc-btn--remove {
+  box-shadow: 0 2px 14px rgba(249, 115, 22, 0.35);
+}

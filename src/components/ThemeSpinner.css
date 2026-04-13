@@ -1,0 +1,61 @@
+.theme-spinner {
+  position: relative;
+  --theme-spinner-c0: #9a3412;
+  --theme-spinner-c1: #c2410c;
+  --theme-spinner-c2: #ea580c;
+  --theme-spinner-c3: #f97316;
+  --theme-spinner-c4: #fb923c;
+  --theme-spinner-c5: #fdba74;
+  --theme-spinner-c6: #fed7aa;
+  --theme-spinner-c7: #ffedd5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dashboard-shell.is-dark .theme-spinner {
+  --theme-spinner-c0: #ea580c;
+  --theme-spinner-c1: #f97316;
+  --theme-spinner-c2: #fb923c;
+  --theme-spinner-c3: #fdba74;
+  --theme-spinner-c4: #fed7aa;
+  --theme-spinner-c5: #fcd34d;
+  --theme-spinner-c6: rgba(254, 215, 170, 0.55);
+  --theme-spinner-c7: rgba(255, 237, 213, 0.28);
+}
+
+.theme-spinner__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  animation: theme-spinner-rotate 0.9s linear infinite;
+}
+
+@keyframes theme-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-spinner__svg {
+    animation: none;
+  }
+}
+
+.theme-spinner--sm {
+  width: 28px;
+  height: 28px;
+}
+
+.theme-spinner--md {
+  width: 40px;
+  height: 40px;
+}
+
+.theme-spinner--lg {
+  width: 56px;
+  height: 56px;
+}
