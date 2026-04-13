@@ -53,7 +53,7 @@ export default function LoginPage({ onAuthSuccess }) {
     setError("");
     setInfo("");
     setLoading(true);
-
+console.log("handleEmailAuth", email, password);
     try {
       if (!supabase) {
         throw new Error(missingSupabaseMessage);
