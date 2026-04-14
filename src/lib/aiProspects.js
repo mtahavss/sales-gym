@@ -1,5 +1,8 @@
 import { supabase } from "./supabaseClient";
 
+/** Fired after AI prospects are created or deleted so the overview widget can refresh. */
+export const AI_PROSPECTS_CHANGED_EVENT = "salesgym:ai-prospects-changed";
+
 export async function listAiProspects(userId) {
   if (!supabase) {
     throw new Error("Supabase is not configured.");

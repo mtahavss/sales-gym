@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { listTrainingSessions } from "../../lib/trainingSessions";
-import { hasPermission } from "../../lib/rbac";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AI_PROSPECTS_CHANGED_EVENT, listAiProspects } from "../../lib/aiProspects";
+import {
+  isAiRoleplayTrainingSession,
+  listTrainingSessions,
+  TRAINING_SESSIONS_CHANGED_EVENT,
+} from "../../lib/trainingSessions";
+import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import DashboardOverview from "./DashboardOverview";
 import RepPerformanceTable from "./RepPerformanceTable";
 
@@ -75,6 +80,7 @@ function FlaggedRepsPanel() {
 // ── Main component ──────────────────────────────────────────────────────────────
 export default function DashboardHome({ user, profile }) {
   const [sessions, setSessions] = useState([]);
+  const [aiProspectRows, setAiProspectRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [widgetConfig, setWidgetConfig] = useState(() => loadWidgetConfig());
@@ -90,19 +96,59 @@ export default function DashboardHome({ user, profile }) {
     return () => window.removeEventListener("dashboard-widgets-changed", onWidgetsChanged);
   }, []);
 
-  useEffect(() => {
-    async function loadSessions() {
-      try {
-        const rows = await listTrainingSessions(user.id);
-        setSessions(rows);
-      } catch (sessionError) {
-        setError(sessionError.message);
-      } finally {
-        setLoading(false);
-      }
+  const refreshTrainingSessions = useCallback(async () => {
+    if (!user?.id) {
+      setSessions([]);
+      return;
     }
-    loadSessions();
-  }, [user.id]);
+    try {
+      const rows = await listTrainingSessions(user.id);
+      setSessions(rows);
+      setError("");
+    } catch (sessionError) {
+      setError(sessionError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    refreshTrainingSessions();
+  }, [refreshTrainingSessions]);
+
+  useEffect(() => {
+    function onTrainingSessionsChanged() {
+      refreshTrainingSessions();
+    }
+    window.addEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onTrainingSessionsChanged);
+    return () =>
+      window.removeEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onTrainingSessionsChanged);
+  }, [refreshTrainingSessions]);
+
+  const refreshAiProspects = useCallback(async () => {
+    if (!user?.id || !isSupabaseConfigured) {
+      setAiProspectRows([]);
+      return;
+    }
+    try {
+      const rows = await listAiProspects(user.id);
+      setAiProspectRows(rows);
+    } catch {
+      setAiProspectRows([]);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    refreshAiProspects();
+  }, [refreshAiProspects]);
+
+  useEffect(() => {
+    function onProspectsChanged() {
+      refreshAiProspects();
+    }
+    window.addEventListener(AI_PROSPECTS_CHANGED_EVENT, onProspectsChanged);
+    return () => window.removeEventListener(AI_PROSPECTS_CHANGED_EVENT, onProspectsChanged);
+  }, [refreshAiProspects]);
 
   // Filter sessions to the selected date range
   const filteredSessions = useMemo(
@@ -110,16 +156,32 @@ export default function DashboardHome({ user, profile }) {
     [sessions, rangeStart, rangeEnd]
   );
 
+  const aiProspectsInRangeCount = useMemo(
+    () => aiProspectRows.filter((p) => inRange(p.created_at, rangeStart, rangeEnd)).length,
+    [aiProspectRows, rangeStart, rangeEnd]
+  );
+
+  const roleplaySessionsInRangeCount = useMemo(
+    () => filteredSessions.filter((s) => isAiRoleplayTrainingSession(s)).length,
+    [filteredSessions]
+  );
+
   const stats = useMemo(() => {
-    const v = computeOverviewStatValues(filteredSessions);
+    const v = computeOverviewStatValues(filteredSessions, { aiProspectCount: aiProspectsInRangeCount });
     return {
       "total-calls":       { label: "Total Calls",       value: v.totalCalls,              delta: "+0%", info: "Total number of recorded calls across all team members." },
       "training-time":     { label: "Training Time",     value: v.trainingTimeDisplay,   delta: "+0%", info: "Total time spent in AI roleplay sessions and training activities." },
-      "ai-roleplays":      { label: "AI Roleplays",      value: v.aiRoleplays,           delta: "+0%", info: "Total number of AI roleplay practice sessions across the team." },
+      "ai-roleplays":      { label: "AI Roleplays",      value: v.aiRoleplays,           delta: "+0%", info: "Number of AI prospects created in the AI Roleplay section (in the selected date range)." },
+      "roleplay-sessions": {
+        label: "AI Roleplay Sessions",
+        value: roleplaySessionsInRangeCount,
+        delta: "+0%",
+        info: "Completed AI roleplay calls in the selected date range (one row per session, stored with your training data).",
+      },
       "avg-call-score":    { label: "Avg Call Score",    value: v.avgCallScore,          delta: "+0%", info: "Team-wide average AI call score based on discovery, objection handling, and closing." },
       "avg-call-duration": { label: "Avg Call Duration", value: `${v.avgDurationMins}m`, delta: "+0%", info: "Average duration of all recorded calls across your team members." },
     };
-  }, [filteredSessions]);
+  }, [filteredSessions, aiProspectsInRangeCount, roleplaySessionsInRangeCount]);
 
   // Render each widget by its ID
   function renderWidget(id) {
@@ -127,6 +189,7 @@ export default function DashboardHome({ user, profile }) {
       case "total-calls":
       case "training-time":
       case "ai-roleplays":
+      case "roleplay-sessions":
       case "avg-call-score":
       case "avg-call-duration": {
         const s = stats[id];
@@ -150,7 +213,14 @@ export default function DashboardHome({ user, profile }) {
   }
 
   // Stat-card IDs (render inline in a grid row)
-  const STAT_IDS = new Set(["total-calls", "training-time", "ai-roleplays", "avg-call-score", "avg-call-duration"]);
+  const STAT_IDS = new Set([
+    "total-calls",
+    "training-time",
+    "ai-roleplays",
+    "roleplay-sessions",
+    "avg-call-score",
+    "avg-call-duration",
+  ]);
 
   // Separate stat cards from panel/chart/table widgets.
   // Stat cards always render as ONE single row (regardless of their position in the

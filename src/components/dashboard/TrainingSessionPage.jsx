@@ -3,6 +3,11 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import "./TrainingSessionPage.css";
 import { TRAINING_SESSION_MODE } from "../../lib/trainingSessionModes";
 import { incrementAiProspectSessionCount } from "../../lib/aiProspects";
+import {
+  AI_ROLEPLAY_SESSION_SCENARIO_PREFIX,
+  createTrainingSession,
+  TRAINING_SESSIONS_CHANGED_EVENT,
+} from "../../lib/trainingSessions";
 import CallFinishedModal from "./CallFinishedModal";
 
 function formatDuration(totalSeconds) {
@@ -296,6 +301,17 @@ export default function TrainingSessionPage({ user }) {
           id: session.prospectId,
           userId: user.id,
         });
+        try {
+          await createTrainingSession({
+            userId: user.id,
+            closerName: prospectName,
+            goal: "AI Roleplay",
+            scenario: `${AI_ROLEPLAY_SESSION_SCENARIO_PREFIX} prospect=${session.prospectId} mode=${trainingMode}`,
+          });
+          window.dispatchEvent(new CustomEvent(TRAINING_SESSIONS_CHANGED_EVENT));
+        } catch (logErr) {
+          console.warn("Could not log AI roleplay session to training_sessions:", logErr);
+        }
       } catch (e) {
         sessionCompletionCountedRef.current = false;
         console.warn("Could not update prospect session count:", e);

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createTrainingSession } from "../../lib/trainingSessions";
+import { createTrainingSession, TRAINING_SESSIONS_CHANGED_EVENT } from "../../lib/trainingSessions";
 import ThemedMenuSelect from "./ThemedMenuSelect";
 
 const sampleScenarios = [
@@ -33,6 +33,7 @@ export default function SessionComposer({ user, canCreate, onSessionCreated }) {
         goal,
         scenario
       });
+      window.dispatchEvent(new CustomEvent(TRAINING_SESSIONS_CHANGED_EVENT));
       onSessionCreated(session);
       setGoal("");
       setMessage("Session created successfully.");

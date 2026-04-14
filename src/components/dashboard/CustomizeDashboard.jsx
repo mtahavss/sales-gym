@@ -46,6 +46,13 @@ export const ALL_WIDGETS = [
     iconType: "pulse",
   },
   {
+    id: "roleplay-sessions",
+    label: "AI Roleplay Sessions",
+    desc: "Completed live AI roleplay sessions in the selected period",
+    category: "METRICS",
+    iconType: "activity",
+  },
+  {
     id: "sales-pulse",
     label: "Sales Pulse",
     desc: "Win/loss analysis and deal outcomes from your team's calls",
@@ -72,6 +79,7 @@ export const DEFAULT_ACTIVE = [
   "total-calls",
   "training-time",
   "ai-roleplays",
+  "roleplay-sessions",
   "avg-call-duration",
   "sales-pulse",
   "performance-overview",

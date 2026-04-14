@@ -7,6 +7,7 @@ import DeleteProspectConfirmModal from "./DeleteProspectConfirmModal";
 import SelectTrainingModeModal from "./SelectTrainingModeModal";
 import ThemedMenuSelect from "./ThemedMenuSelect";
 import {
+  AI_PROSPECTS_CHANGED_EVENT,
   createAiProspect,
   deleteAiProspect,
   listAiProspects,
@@ -421,6 +422,7 @@ export default function DashboardAiRoleplay({ user }) {
     try {
       await deleteAiProspect({ id: row.id, userId: user.id });
       setRows((prev) => prev.filter((r) => r.id !== row.id));
+      window.dispatchEvent(new CustomEvent(AI_PROSPECTS_CHANGED_EVENT));
       setDeleteConfirmRow(null);
     } catch (e) {
       window.alert(e?.message || "Could not delete prospect.");
@@ -771,6 +773,7 @@ export default function DashboardAiRoleplay({ user }) {
                   }
                   const row = await createAiProspect({ userId: user.id, formData: data });
                   setRows((prev) => [row, ...prev.filter((r) => r.id !== row.id)]);
+                  window.dispatchEvent(new CustomEvent(AI_PROSPECTS_CHANGED_EVENT));
                 }
           }
         />
