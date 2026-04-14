@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  formatLastSeenRelative,
+  isUserOnline,
+} from "../../lib/userPresence";
 import DashboardPageHero from "./DashboardPageHero";
 import ThemeSpinner from "../ThemeSpinner";
 import ThemedMenuSelect from "./ThemedMenuSelect";
@@ -75,29 +79,57 @@ export default function DashboardTeam({ user, profile }) {
   const [sortOrder, setSortOrder] = useState("top");
   const [rankBy, setRankBy] = useState("score");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function loadMembers() {
-      if (!supabase) {
-        setMembers(profile ? [profile] : []);
-        setLoading(false);
-        return;
-      }
-      try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, email, full_name, role, created_at")
-          .order("created_at", { ascending: true });
-        setMembers(data || (profile ? [profile] : []));
-      } catch {
-        setMembers(profile ? [profile] : []);
-      } finally {
-        setLoading(false);
-      }
+  const isAdmin = profile?.role === "admin";
+  const tableColCount = isAdmin ? 7 : 6;
+
+  const loadMembers = useCallback(async () => {
+    if (!supabase) {
+      setMembers(profile ? [profile] : []);
+      setLoading(false);
+      return;
     }
-    loadMembers();
+    setLoading(true);
+    const selectFields =
+      profile?.role === "admin"
+        ? "id, email, full_name, role, created_at, last_seen_at"
+        : "id, email, full_name, role, created_at";
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(selectFields)
+        .order("created_at", { ascending: true });
+      if (error) {
+        throw error;
+      }
+      setMembers(data?.length ? data : profile ? [profile] : []);
+    } catch {
+      setMembers(profile ? [profile] : []);
+    } finally {
+      setLoading(false);
+    }
   }, [profile]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin || !supabase) {
+      return undefined;
+    }
+    const id = setInterval(() => {
+      loadMembers();
+    }, 45_000);
+    return () => clearInterval(id);
+  }, [isAdmin, loadMembers]);
 
   const filtered = members.filter((m) => {
     const q = search.toLowerCase();
@@ -121,8 +153,6 @@ export default function DashboardTeam({ user, profile }) {
     }
     return list;
   }, [filtered, sortOrder, rankBy]);
-
-  const isAdmin = profile?.role === "admin";
 
   return (
     <>
@@ -190,7 +220,7 @@ export default function DashboardTeam({ user, profile }) {
               type="button"
               className="tm-icon-btn"
               title="Refresh"
-              onClick={() => { setLoading(true); setTimeout(() => setLoading(false), 600); }}
+              onClick={() => loadMembers()}
             >
               <RefreshIcon />
               Refresh
@@ -207,21 +237,23 @@ export default function DashboardTeam({ user, profile }) {
                 <th>Avg Score Trend</th>
                 <th>Close Rate</th>
                 <th>Last Call</th>
-                <th>Onboarding</th>
-                <th>Status</th>
+                <th title="When this member&apos;s account was created in your workspace.">Onboarding Date</th>
+                {isAdmin ? (
+                  <th title="Who currently has the app open (heartbeat). Admins only.">Session</th>
+                ) : null}
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="tm-empty-cell db-loading-cell">
+                  <td colSpan={tableColCount} className="tm-empty-cell db-loading-cell">
                     <ThemeSpinner size="md" label="Loading team" />
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="tm-empty-cell">No members found.</td>
+                  <td colSpan={tableColCount} className="tm-empty-cell">No members found.</td>
                 </tr>
               ) : (
                 displayMembers.map((m) => {
@@ -249,13 +281,33 @@ export default function DashboardTeam({ user, profile }) {
                       <td className="tm-muted">0%</td>
                       <td className="tm-muted">—</td>
                       <td>
-                        <span className="tm-onboard-label">
-                          Joined: {formatDate(m.created_at)}
-                        </span>
+                        <time
+                          className="tm-onboard-date-only"
+                          dateTime={m.created_at || undefined}
+                          title="Profile created — when this member joined"
+                        >
+                          {formatDate(m.created_at)}
+                        </time>
                       </td>
-                      <td>
-                        <span className="tm-status-badge tm-status-active">Active</span>
-                      </td>
+                      {isAdmin ? (
+                        <td>
+                          {isUserOnline(m.last_seen_at, nowMs) ? (
+                            <span className="tm-session-badge tm-session-online">
+                              <span className="tm-session-dot" aria-hidden="true" />
+                              Online
+                            </span>
+                          ) : m.last_seen_at ? (
+                            <span
+                              className="tm-session-badge tm-session-away"
+                              title={new Date(m.last_seen_at).toLocaleString()}
+                            >
+                              Away · {formatLastSeenRelative(m.last_seen_at, nowMs)}
+                            </span>
+                          ) : (
+                            <span className="tm-muted">—</span>
+                          )}
+                        </td>
+                      ) : null}
                       <td onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"

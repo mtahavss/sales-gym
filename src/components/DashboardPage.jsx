@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import "./dashboard/dashboard.css";
 import { hasPermission } from "../lib/rbac";
+import { startPresenceHeartbeat } from "../lib/userPresence";
 import DashboardSidebar from "./dashboard/DashboardSidebar";
 import DashboardTopbar from "./dashboard/DashboardTopbar";
 import ChatWidget from "./dashboard/ChatWidget";
@@ -32,8 +33,14 @@ export default function DashboardPage({ user, profile, onSignOut }) {
 
   useEffect(() => {
     window.localStorage.setItem("dashboard_theme", themeMode);
-    console.log("test",themeMode)
   }, [themeMode]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return undefined;
+    }
+    return startPresenceHeartbeat(user.id);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!window.matchMedia) {

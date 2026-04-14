@@ -16,6 +16,9 @@ export function normalizeRole(role) {
   }
 
   const lowered = String(role).toLowerCase();
+  if (lowered === "owner") {
+    return USER_ROLES.ADMIN;
+  }
   return ROLE_PERMISSIONS[lowered] ? lowered : USER_ROLES.VIEWER;
 }
 

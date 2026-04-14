@@ -2229,6 +2229,13 @@
   color: #7f879b;
 }
 
+.tm-onboard-date-only {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+}
+
 .tm-status-badge {
   display: inline-block;
   padding: 0.18rem 0.55rem;
@@ -2240,6 +2247,33 @@
 .tm-status-active {
   background: #dcfce7;
   color: #15803d;
+}
+
+.tm-session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tm-session-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
+  flex-shrink: 0;
+}
+
+.tm-session-online {
+  color: #15803d;
+}
+
+.tm-session-away {
+  color: #64748b;
+  font-weight: 500;
 }
 
 .tm-manage-btn {
@@ -2555,6 +2589,19 @@
   background: rgba(251, 146, 60, 0.08);
 }
 
+.dashboard-shell.is-dark .tm-session-online {
+  color: #86efac;
+}
+
+.dashboard-shell.is-dark .tm-session-away {
+  color: #94a3b8;
+}
+
+.dashboard-shell.is-dark .tm-session-dot {
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35);
+}
+
 .dashboard-shell.is-dark .tm-danger-panel {
   background: rgba(194, 65, 12, 0.06) !important;
   border-color: rgba(194, 65, 12, 0.25) !important;
@@ -2568,6 +2615,10 @@
 .dashboard-shell.is-dark .tm-header p,
 .dashboard-shell.is-dark .tm-settings-desc,
 .dashboard-shell.is-dark .tm-member-email,
+.dashboard-shell.is-dark .tm-onboard-date-only {
+  color: #e2e8f0;
+}
+
 .dashboard-shell.is-dark .tm-onboard-label,
 .dashboard-shell.is-dark .tm-muted,
 .dashboard-shell.is-dark .tm-seats-label,
@@ -2628,6 +2679,56 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-width: 0;
+}
+
+.tm-member-header-right {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.tm-member-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.tm-member-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
+.tm-member-delete-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Visible but inert: admin viewing own profile (can’t self-remove here) */
+.tm-member-delete-btn--self {
+  opacity: 0.85;
+  cursor: not-allowed;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
+  background: #f8fafc !important;
+}
+
+.tm-member-delete-btn--self:hover {
+  filter: none;
+  transform: none;
+}
+
+.tm-member-delete-btn svg {
+  flex-shrink: 0;
 }
 
 .tm-back-btn {
@@ -2925,6 +3026,24 @@
   border-color: rgba(251, 146, 60, 0.14);
 }
 
+.dashboard-shell.is-dark .tm-member-delete-btn {
+  background: #262626;
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+.dashboard-shell.is-dark .tm-member-delete-btn:hover:not(:disabled) {
+  background: #333;
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.dashboard-shell.is-dark .tm-member-delete-btn--self {
+  color: #64748b !important;
+  border-color: #404040 !important;
+  background: #262626 !important;
+}
+
 @media (max-width: 900px) {
   .tm-kpi-row {
     grid-template-columns: repeat(2, 1fr);
@@ -2942,6 +3061,10 @@
   .tm-member-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .tm-member-header-right {
+    align-self: flex-end;
   }
 }
 

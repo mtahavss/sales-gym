@@ -39,6 +39,11 @@ export default function DashboardScorecards() {
           label: "Need help with scorecards? View docs",
           onClick: (e) => e.preventDefault(),
         }}
+        secondaryAction={
+          <button type="button" className="db-page-primary-btn">
+            Get Certified
+          </button>
+        }
         primaryButton={{
           label: "New Scorecard",
           icon: <PlusIcon />,
