@@ -1,0 +1,11 @@
+-- Team dashboards aggregate `training_sessions` across all `profiles` in the workspace.
+-- If RLS only allows `user_id = auth.uid()`, the client will only see the signed-in user’s rows
+-- and team totals / “last call” will look wrong. Review existing policies first.
+--
+-- Example for a single-tenant workspace where any signed-in user may read all sessions:
+
+-- drop policy if exists "training_sessions_select_team" on public.training_sessions;
+-- create policy "training_sessions_select_team"
+--   on public.training_sessions for select
+--   to authenticated
+--   using (true);

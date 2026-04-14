@@ -1,3 +1,13 @@
+/** Latest session timestamp in a list (ISO string). */
+export function maxSessionCreatedAt(sessions) {
+  let max = null;
+  for (const s of sessions || []) {
+    const t = s?.created_at;
+    if (t && (!max || t > max)) max = t;
+  }
+  return max;
+}
+
 /**
  * Stat values for dashboard overview widgets (same formulas as DashboardHome).
  * @param {Array<{ created_at?: string }>} filteredSessions

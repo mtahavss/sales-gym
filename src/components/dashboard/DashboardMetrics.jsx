@@ -1,5 +1,12 @@
-import { useMemo, useState } from "react";
-import { useDateRange } from "../../lib/DateRangeContext";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDateRange, inRange, formatDateShort } from "../../lib/DateRangeContext";
+import { supabase } from "../../lib/supabaseClient";
+import {
+  aggregateCallStatsByUserId,
+  fetchAllTeamTrainingSessions,
+  TRAINING_SESSIONS_CHANGED_EVENT,
+} from "../../lib/trainingSessions";
+import { maxSessionCreatedAt } from "../../lib/overviewStats";
 import DashboardPageHero from "./DashboardPageHero";
 import "./DashboardMetrics.css";
 import ThemedMenuSelect from "./ThemedMenuSelect";
@@ -96,22 +103,94 @@ export default function DashboardMetrics({ user, profile }) {
   const [leaderboardQuery, setLeaderboardQuery] = useState("");
   const [perfMetric, setPerfMetric] = useState("cash");
   const [trendMetric, setTrendMetric] = useState("");
-  const { label: rangeLabel } = useDateRange();
-  const displayName =
-    (profile?.full_name || profile?.name || user?.email?.split("@")[0] || "muhammad").toLowerCase();
-  const initials = displayName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 1)
-    .map((p) => p[0]?.toUpperCase() || "")
-    .join("") || "M";
+  const { start: rangeStart, end: rangeEnd, label: rangeLabel } = useDateRange();
+  const [teamSessions, setTeamSessions] = useState([]);
+  const [teamProfiles, setTeamProfiles] = useState([]);
+
+  const refreshTeamData = useCallback(async () => {
+    if (!supabase) {
+      setTeamSessions([]);
+      setTeamProfiles([]);
+      return;
+    }
+    try {
+      const [sessions, { data: profs, error: pe }] = await Promise.all([
+        fetchAllTeamTrainingSessions(),
+        supabase.from("profiles").select("id, email, full_name").order("created_at", { ascending: true }),
+      ]);
+      setTeamSessions(sessions);
+      if (!pe && profs?.length) {
+        setTeamProfiles(profs);
+      } else {
+        setTeamProfiles([]);
+      }
+    } catch {
+      setTeamSessions([]);
+      setTeamProfiles([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshTeamData();
+  }, [refreshTeamData]);
+
+  useEffect(() => {
+    function onRefresh() {
+      refreshTeamData();
+    }
+    window.addEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onRefresh);
+    window.addEventListener("dashboard-metrics-refresh", onRefresh);
+    return () => {
+      window.removeEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onRefresh);
+      window.removeEventListener("dashboard-metrics-refresh", onRefresh);
+    };
+  }, [refreshTeamData]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => refreshTeamData(), 60_000);
+    return () => window.clearInterval(id);
+  }, [refreshTeamData]);
+
+  const sessionsInRange = useMemo(
+    () => teamSessions.filter((s) => inRange(s.created_at, rangeStart, rangeEnd)),
+    [teamSessions, rangeStart, rangeEnd]
+  );
+
+  const callStatsByUser = useMemo(
+    () => aggregateCallStatsByUserId(sessionsInRange),
+    [sessionsInRange]
+  );
+
+  const totalCallsInRange = sessionsInRange.length;
+  const lastCallLabel = useMemo(() => {
+    const ts = maxSessionCreatedAt(sessionsInRange);
+    if (!ts) return "—";
+    return formatDateShort(new Date(ts));
+  }, [sessionsInRange]);
 
   const dates = useMemo(() => ["Mar 12", "Mar 13", "Mar 14", "Mar 15", "Mar 16", "Mar 17", "Mar 18", "Mar 19"], []);
 
   const repYLabels = [7, 6, 5, 4, 3, 2, 1, 0].map((v) => `$${v}`);
   const teamYLabels = [4, 3, 2, 1, 0];
 
-  const rowVisible = displayName.includes(leaderboardQuery.toLowerCase().trim()) || leaderboardQuery.trim() === "";
+  const qLower = leaderboardQuery.toLowerCase().trim();
+  const leaderboardRows = useMemo(() => {
+    const list = teamProfiles.length
+      ? teamProfiles
+      : profile?.id
+        ? [{ id: profile.id, email: user?.email, full_name: profile?.full_name }]
+        : [];
+    return list
+      .filter((p) => {
+        const name = (p.full_name || p.email || "").toLowerCase();
+        return !qLower || name.includes(qLower);
+      })
+      .map((p) => ({
+        ...p,
+        calls: callStatsByUser[p.id]?.totalCalls ?? 0,
+      }))
+      .sort((a, b) => b.calls - a.calls);
+  }, [teamProfiles, profile, user, qLower, callStatsByUser]);
 
   return (
     <div className="db-metrics-page">
@@ -149,9 +228,19 @@ export default function DashboardMetrics({ user, profile }) {
           <p className="db-metrics-kpi-hint">Total revenue</p>
         </article>
         <article className="db-metrics-kpi">
+          <p className="db-metrics-kpi-label">Total Calls</p>
+          <p className="db-metrics-kpi-value">{totalCallsInRange}</p>
+          <p className="db-metrics-kpi-hint">{rangeLabel}</p>
+        </article>
+        <article className="db-metrics-kpi">
+          <p className="db-metrics-kpi-label">Last Call</p>
+          <p className="db-metrics-kpi-value">{lastCallLabel}</p>
+          <p className="db-metrics-kpi-hint">Most recent in period</p>
+        </article>
+        <article className="db-metrics-kpi">
           <p className="db-metrics-kpi-label">Close Rate</p>
           <p className="db-metrics-kpi-value">0%</p>
-          <p className="db-metrics-kpi-hint">0 calls</p>
+          <p className="db-metrics-kpi-hint">{totalCallsInRange} calls in period</p>
         </article>
       </section>
 
@@ -203,32 +292,43 @@ export default function DashboardMetrics({ user, profile }) {
               </tr>
             </thead>
             <tbody>
-              {rowVisible ? (
+              {leaderboardRows.length === 0 ? (
                 <tr>
-                  <td>
-                    <span className="db-rank-pill">1</span>
-                  </td>
-                  <td>
-                    <div className="db-rep-cell">
-                      <span className="db-rep-avatar db-metrics-lb-avatar">{initials}</span>
-                      <span>{displayName}</span>
-                    </div>
-                  </td>
-                  <td>0</td>
-                  <td>0%</td>
-                  <td>$0</td>
-                  <td>
-                    <button type="button" className="db-metrics-view-link">
-                      View &gt;
-                    </button>
+                  <td colSpan={6} className="db-metrics-table-empty">
+                    {qLower ? "No team members match your search." : "No team members loaded."}
                   </td>
                 </tr>
               ) : (
-                <tr>
-                  <td colSpan={6} className="db-metrics-table-empty">
-                    No team members match your search.
-                  </td>
-                </tr>
+                leaderboardRows.map((row, idx) => {
+                  const label = row.full_name || row.email || "Member";
+                  const rowInitials = String(row.full_name || row.email || "M")
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 1)
+                    .map((p) => p[0]?.toUpperCase() || "")
+                    .join("") || "M";
+                  return (
+                    <tr key={row.id}>
+                      <td>
+                        <span className="db-rank-pill">{idx + 1}</span>
+                      </td>
+                      <td>
+                        <div className="db-rep-cell">
+                          <span className="db-rep-avatar db-metrics-lb-avatar">{rowInitials}</span>
+                          <span>{label}</span>
+                        </div>
+                      </td>
+                      <td>{row.calls}</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>
+                        <button type="button" className="db-metrics-view-link">
+                          View &gt;
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

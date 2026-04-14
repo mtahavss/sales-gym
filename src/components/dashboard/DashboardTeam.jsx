@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
+  aggregateCallStatsByUserId,
+  fetchTrainingSessionsForUserIds,
+  TRAINING_SESSIONS_CHANGED_EVENT,
+} from "../../lib/trainingSessions";
+import { hasPermission } from "../../lib/rbac";
+import {
   formatLastSeenRelative,
   isUserOnline,
 } from "../../lib/userPresence";
@@ -80,9 +86,12 @@ export default function DashboardTeam({ user, profile }) {
   const [rankBy, setRankBy] = useState("score");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [teamLoadError, setTeamLoadError] = useState("");
+  /** @type {Record<string, { totalCalls: number, lastCallAt: string | null }>} */
+  const [callStatsByUserId, setCallStatsByUserId] = useState({});
   const navigate = useNavigate();
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = hasPermission(profile?.role, "access_admin");
   const tableColCount = isAdmin ? 7 : 6;
 
   const loadMembers = useCallback(async () => {
@@ -92,10 +101,10 @@ export default function DashboardTeam({ user, profile }) {
       return;
     }
     setLoading(true);
-    const selectFields =
-      profile?.role === "admin"
-        ? "id, email, full_name, role, created_at, last_seen_at"
-        : "id, email, full_name, role, created_at";
+    setTeamLoadError("");
+    const selectFields = isAdmin
+      ? "id, email, full_name, role, created_at, last_seen_at"
+      : "id, email, full_name, role, created_at";
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -105,16 +114,51 @@ export default function DashboardTeam({ user, profile }) {
         throw error;
       }
       setMembers(data?.length ? data : profile ? [profile] : []);
-    } catch {
+    } catch (e) {
+      const msg = e?.message || "Could not load team members.";
+      setTeamLoadError(msg);
       setMembers(profile ? [profile] : []);
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, isAdmin]);
 
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  const loadCallStats = useCallback(async () => {
+    if (!supabase || members.length === 0) {
+      setCallStatsByUserId({});
+      return;
+    }
+    try {
+      const ids = members.map((m) => m.id);
+      const rows = await fetchTrainingSessionsForUserIds(ids);
+      setCallStatsByUserId(aggregateCallStatsByUserId(rows));
+    } catch {
+      setCallStatsByUserId({});
+    }
+  }, [members]);
+
+  useEffect(() => {
+    loadCallStats();
+  }, [loadCallStats]);
+
+  useEffect(() => {
+    function onSessionsChanged() {
+      loadCallStats();
+    }
+    window.addEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onSessionsChanged);
+    return () => window.removeEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onSessionsChanged);
+  }, [loadCallStats]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      loadCallStats();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [loadCallStats]);
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 60_000);
@@ -149,10 +193,18 @@ export default function DashboardTeam({ user, profile }) {
       list.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
     }
     if (rankBy === "calls") {
-      /* Placeholder until call metrics exist — keep stable order */
+      list.sort((a, b) => {
+        const ca = callStatsByUserId[a.id]?.totalCalls ?? 0;
+        const cb = callStatsByUserId[b.id]?.totalCalls ?? 0;
+        if (cb !== ca) return cb - ca;
+        const la = callStatsByUserId[a.id]?.lastCallAt || "";
+        const lb = callStatsByUserId[b.id]?.lastCallAt || "";
+        if (lb !== la) return lb.localeCompare(la);
+        return (a.full_name || a.email || "").localeCompare(b.full_name || b.email || "");
+      });
     }
     return list;
-  }, [filtered, sortOrder, rankBy]);
+  }, [filtered, sortOrder, rankBy, callStatsByUserId]);
 
   return (
     <>
@@ -177,6 +229,20 @@ export default function DashboardTeam({ user, profile }) {
         }
         variant="team"
       />
+
+      {teamLoadError ? (
+        <div className="tm-team-error" role="alert">
+          {teamLoadError}
+        </div>
+      ) : null}
+
+      <p className="tm-team-hint" role="note">
+        <strong>Missing someone?</strong> They need to <strong>sign in at least once</strong> — we create their
+        profile on first login. If they already use the app and still don’t appear, open Supabase →{' '}
+        <strong>Authentication → Users</strong> and confirm the account exists; then check{' '}
+        <strong>Table Editor → profiles</strong> and <strong>Row Level Security</strong>: a policy must allow
+        listing everyone’s profile (not only your own row), or the Team page can only show you.
+      </p>
 
       {/* ── Members table ── */}
       <div className="db-panel tm-panel">
@@ -220,7 +286,10 @@ export default function DashboardTeam({ user, profile }) {
               type="button"
               className="tm-icon-btn"
               title="Refresh"
-              onClick={() => loadMembers()}
+              onClick={() => {
+                loadMembers();
+                loadCallStats();
+              }}
             >
               <RefreshIcon />
               Refresh
@@ -259,6 +328,7 @@ export default function DashboardTeam({ user, profile }) {
                 displayMembers.map((m) => {
                   const initials = getInitials(m.full_name || m.email || "U");
                   const isSelf = m.id === user?.id;
+                  const lastCallAt = callStatsByUserId[m.id]?.lastCallAt;
                   return (
                     <tr
                       key={m.id}
@@ -279,7 +349,19 @@ export default function DashboardTeam({ user, profile }) {
                       </td>
                       <td className="tm-muted">—</td>
                       <td className="tm-muted">0%</td>
-                      <td className="tm-muted">—</td>
+                      <td>
+                        {lastCallAt ? (
+                          <time
+                            className="tm-onboard-date-only"
+                            dateTime={lastCallAt}
+                            title={new Date(lastCallAt).toLocaleString()}
+                          >
+                            {formatDate(lastCallAt)}
+                          </time>
+                        ) : (
+                          <span className="tm-muted">—</span>
+                        )}
+                      </td>
                       <td>
                         <time
                           className="tm-onboard-date-only"

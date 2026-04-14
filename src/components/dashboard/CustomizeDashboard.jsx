@@ -32,6 +32,13 @@ export const ALL_WIDGETS = [
     iconType: "bar",
   },
   {
+    id: "last-call",
+    label: "Last Call",
+    desc: "Date of the most recent team training session in the selected period",
+    category: "METRICS",
+    iconType: "clock",
+  },
+  {
     id: "training-time",
     label: "Team Training Time",
     desc: "Total time spent in AI roleplay sessions and training activities",
@@ -77,6 +84,7 @@ export const ALL_WIDGETS = [
 
 export const DEFAULT_ACTIVE = [
   "total-calls",
+  "last-call",
   "training-time",
   "ai-roleplays",
   "roleplay-sessions",

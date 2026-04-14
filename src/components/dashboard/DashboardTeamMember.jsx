@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { hasPermission } from "../../lib/rbac";
+import { useDateRange, inRange, formatDateShort } from "../../lib/DateRangeContext";
+import {
+  isAiRoleplayTrainingSession,
+  listTrainingSessions,
+  TRAINING_SESSIONS_CHANGED_EVENT,
+} from "../../lib/trainingSessions";
+import { computeOverviewStatValues } from "../../lib/overviewStats";
 import ThemeSpinner from "../ThemeSpinner";
 import ThemedMenuSelect from "./ThemedMenuSelect";
 
@@ -161,14 +168,84 @@ function TrendChart({ dates }) {
 export default function DashboardTeamMember({ user, profile }) {
   const { memberId } = useParams();
   const navigate = useNavigate();
+  const { start: rangeStart, end: rangeEnd, label: rangeLabel } = useDateRange();
   const [member, setMember] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [callSearch, setCallSearch] = useState("");
   const [callType, setCallType] = useState("all");
   const [trendMetric, setTrendMetric] = useState("live");
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const dates = ["Mar 12", "Mar 13", "Mar 14", "Mar 15", "Mar 16", "Mar 17", "Mar 18"];
+
+  const refreshSessions = useCallback(async () => {
+    if (!supabase || !memberId) {
+      setSessions([]);
+      setSessionsLoading(false);
+      return;
+    }
+    setSessionsLoading(true);
+    try {
+      const rows = await listTrainingSessions(memberId);
+      setSessions(rows);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [memberId]);
+
+  useEffect(() => {
+    refreshSessions();
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    function onSessionsChanged() {
+      refreshSessions();
+    }
+    window.addEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onSessionsChanged);
+    return () => window.removeEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onSessionsChanged);
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      refreshSessions();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [refreshSessions]);
+
+  const sessionsInRange = useMemo(
+    () => sessions.filter((s) => inRange(s.created_at, rangeStart, rangeEnd)),
+    [sessions, rangeStart, rangeEnd]
+  );
+
+  const periodStats = useMemo(
+    () => computeOverviewStatValues(sessionsInRange, { aiProspectCount: 0 }),
+    [sessionsInRange]
+  );
+
+  const lastCallEverAt = sessions[0]?.created_at ?? null;
+
+  const displayedCalls = useMemo(() => {
+    let rows = sessionsInRange;
+    if (callType === "ai") {
+      rows = rows.filter((s) => isAiRoleplayTrainingSession(s));
+    } else if (callType === "live") {
+      rows = rows.filter((s) => !isAiRoleplayTrainingSession(s));
+    }
+    const q = callSearch.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((s) => {
+        const name = (s.closer_name || "").toLowerCase();
+        const g = (s.goal || "").toLowerCase();
+        const scen = (s.scenario || "").toLowerCase();
+        return name.includes(q) || g.includes(q) || scen.includes(q);
+      });
+    }
+    return rows;
+  }, [sessionsInRange, callType, callSearch]);
 
   useEffect(() => {
     async function load() {
@@ -262,7 +339,18 @@ export default function DashboardTeamMember({ user, profile }) {
           <span className="tm-member-avatar-lg">{initials || "U"}</span>
           <div>
             <h1 className="tm-member-title">{displayName}</h1>
-            <p className="tm-member-sub">{member.email} · {roleLabel}</p>
+            <p className="tm-member-sub">
+              {member.email} · {roleLabel}
+              {lastCallEverAt ? (
+                <>
+                  {" "}
+                  · Last call{" "}
+                  <time dateTime={lastCallEverAt} title={new Date(lastCallEverAt).toLocaleString()}>
+                    {formatDateShort(new Date(lastCallEverAt))}
+                  </time>
+                </>
+              ) : null}
+            </p>
           </div>
         </div>
         {isAdminViewer ? (
@@ -303,15 +391,17 @@ export default function DashboardTeamMember({ user, profile }) {
         </div>
         <div className="tm-kpi-card">
           <p className="tm-kpi-label">Total Calls</p>
-          <p className="tm-kpi-value">0</p>
+          <p className="tm-kpi-value">{periodStats.totalCalls}</p>
           <div className="tm-kpi-bar" />
-          <p className="tm-kpi-hint">Calls in selected period</p>
+          <p className="tm-kpi-hint">Calls in selected period ({rangeLabel})</p>
         </div>
         <div className="tm-kpi-card">
           <p className="tm-kpi-label">Avg Call Score</p>
-          <p className="tm-kpi-value">0</p>
+          <p className="tm-kpi-value">{periodStats.avgCallScore}</p>
           <div className="tm-kpi-bar" />
-          <p className="tm-kpi-hint">Across 0 calls</p>
+          <p className="tm-kpi-hint">
+            Across {periodStats.totalCalls} call{periodStats.totalCalls === 1 ? "" : "s"} in period
+          </p>
         </div>
         <div className="tm-kpi-card">
           <p className="tm-kpi-label">Close Rate</p>
@@ -377,7 +467,7 @@ export default function DashboardTeamMember({ user, profile }) {
         <div className="tm-calls-head">
           <div>
             <h2 className="tm-chart-title">All Calls</h2>
-            <p className="tm-chart-desc">Total calls in selected period</p>
+            <p className="tm-chart-desc">Training sessions in {rangeLabel}</p>
           </div>
           <div className="tm-calls-controls">
             <div className="tm-search-wrap tm-calls-search">
@@ -410,15 +500,42 @@ export default function DashboardTeamMember({ user, profile }) {
                 <th>Type</th>
                 <th>Score</th>
                 <th>Revenue</th>
-                <th>Action</th>
+                <th>Logged</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={6} className="tm-empty-cell">
-                  No calls found for the selected filters.
-                </td>
-              </tr>
+              {sessionsLoading ? (
+                <tr>
+                  <td colSpan={6} className="tm-empty-cell db-loading-cell">
+                    <ThemeSpinner size="md" label="Loading calls" />
+                  </td>
+                </tr>
+              ) : displayedCalls.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="tm-empty-cell">
+                    No calls found for the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                displayedCalls.map((row, i) => {
+                  const ai = isAiRoleplayTrainingSession(row);
+                  const when = row.created_at ? new Date(row.created_at).toLocaleString() : "—";
+                  return (
+                    <tr key={row.id}>
+                      <td>{i + 1}</td>
+                      <td>{row.closer_name || "Training call"}</td>
+                      <td>{ai ? "AI Roleplay" : "Live"}</td>
+                      <td className="tm-muted">—</td>
+                      <td className="tm-muted">—</td>
+                      <td>
+                        <span className="tm-muted" title={when}>
+                          {when}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

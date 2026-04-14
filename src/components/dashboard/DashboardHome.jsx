@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AI_PROSPECTS_CHANGED_EVENT, listAiProspects } from "../../lib/aiProspects";
 import {
+  fetchAllTeamTrainingSessions,
   isAiRoleplayTrainingSession,
-  listTrainingSessions,
   TRAINING_SESSIONS_CHANGED_EVENT,
 } from "../../lib/trainingSessions";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
@@ -10,8 +10,8 @@ import DashboardOverview from "./DashboardOverview";
 import RepPerformanceTable from "./RepPerformanceTable";
 
 import CustomizeDashboard, { loadWidgetConfig } from "./CustomizeDashboard";
-import { useDateRange, inRange } from "../../lib/DateRangeContext";
-import { computeOverviewStatValues } from "../../lib/overviewStats";
+import { useDateRange, inRange, formatDateShort } from "../../lib/DateRangeContext";
+import { computeOverviewStatValues, maxSessionCreatedAt } from "../../lib/overviewStats";
 import DashboardPageHero from "./DashboardPageHero";
 
 // ── Info icon with tooltip ────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ function InfoTooltip({ text }) {
 }
 
 // ── Inline stat card ────────────────────────────────────────────────────────────
-function StatCard({ label, value, delta, info }) {
+function StatCard({ label, value, delta, info, showDelta = true }) {
   return (
     <article className="db-stat-card">
       <p className="db-stat-label">
@@ -48,7 +48,7 @@ function StatCard({ label, value, delta, info }) {
         {info && <InfoTooltip text={info} />}
       </p>
       <p className="db-stat-value">{value}</p>
-      <p className="db-stat-delta">{delta} vs last week</p>
+      {showDelta ? <p className="db-stat-delta">{delta} vs last week</p> : null}
     </article>
   );
 }
@@ -102,7 +102,7 @@ export default function DashboardHome({ user, profile }) {
       return;
     }
     try {
-      const rows = await listTrainingSessions(user.id);
+      const rows = await fetchAllTeamTrainingSessions();
       setSessions(rows);
       setError("");
     } catch (sessionError) {
@@ -123,6 +123,13 @@ export default function DashboardHome({ user, profile }) {
     window.addEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onTrainingSessionsChanged);
     return () =>
       window.removeEventListener(TRAINING_SESSIONS_CHANGED_EVENT, onTrainingSessionsChanged);
+  }, [refreshTrainingSessions]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      refreshTrainingSessions();
+    }, 60_000);
+    return () => window.clearInterval(id);
   }, [refreshTrainingSessions]);
 
   const refreshAiProspects = useCallback(async () => {
@@ -166,10 +173,23 @@ export default function DashboardHome({ user, profile }) {
     [filteredSessions]
   );
 
+  const lastCallInRangeLabel = useMemo(() => {
+    const ts = maxSessionCreatedAt(filteredSessions);
+    if (!ts) return "—";
+    return formatDateShort(new Date(ts));
+  }, [filteredSessions]);
+
   const stats = useMemo(() => {
     const v = computeOverviewStatValues(filteredSessions, { aiProspectCount: aiProspectsInRangeCount });
     return {
       "total-calls":       { label: "Total Calls",       value: v.totalCalls,              delta: "+0%", info: "Total number of recorded calls across all team members." },
+      "last-call": {
+        label: "Last Call",
+        value: lastCallInRangeLabel,
+        delta: "+0%",
+        info: "Date of the most recent training session in the selected period (team-wide).",
+        showDelta: false,
+      },
       "training-time":     { label: "Training Time",     value: v.trainingTimeDisplay,   delta: "+0%", info: "Total time spent in AI roleplay sessions and training activities." },
       "ai-roleplays":      { label: "AI Roleplays",      value: v.aiRoleplays,           delta: "+0%", info: "Number of AI prospects created in the AI Roleplay section (in the selected date range)." },
       "roleplay-sessions": {
@@ -181,19 +201,30 @@ export default function DashboardHome({ user, profile }) {
       "avg-call-score":    { label: "Avg Call Score",    value: v.avgCallScore,          delta: "+0%", info: "Team-wide average AI call score based on discovery, objection handling, and closing." },
       "avg-call-duration": { label: "Avg Call Duration", value: `${v.avgDurationMins}m`, delta: "+0%", info: "Average duration of all recorded calls across your team members." },
     };
-  }, [filteredSessions, aiProspectsInRangeCount, roleplaySessionsInRangeCount]);
+  }, [filteredSessions, aiProspectsInRangeCount, roleplaySessionsInRangeCount, lastCallInRangeLabel]);
 
   // Render each widget by its ID
   function renderWidget(id) {
     switch (id) {
       case "total-calls":
+      case "last-call":
       case "training-time":
       case "ai-roleplays":
       case "roleplay-sessions":
       case "avg-call-score":
       case "avg-call-duration": {
         const s = stats[id];
-        return <StatCard key={id} label={s.label} value={s.value} delta={s.delta} info={s.info} />;
+        if (!s) return null;
+        return (
+          <StatCard
+            key={id}
+            label={s.label}
+            value={s.value}
+            delta={s.delta}
+            info={s.info}
+            showDelta={s.showDelta !== false}
+          />
+        );
       }
       case "sales-pulse":
         return <SalesPulsePanel key={id} />;
@@ -215,6 +246,7 @@ export default function DashboardHome({ user, profile }) {
   // Stat-card IDs (render inline in a grid row)
   const STAT_IDS = new Set([
     "total-calls",
+    "last-call",
     "training-time",
     "ai-roleplays",
     "roleplay-sessions",
