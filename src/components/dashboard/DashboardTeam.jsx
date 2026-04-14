@@ -236,14 +236,6 @@ export default function DashboardTeam({ user, profile }) {
         </div>
       ) : null}
 
-      <p className="tm-team-hint" role="note">
-        <strong>Missing someone?</strong> They need to <strong>sign in at least once</strong> — we create their
-        profile on first login. If they already use the app and still don’t appear, open Supabase →{' '}
-        <strong>Authentication → Users</strong> and confirm the account exists; then check{' '}
-        <strong>Table Editor → profiles</strong> and <strong>Row Level Security</strong>: a policy must allow
-        listing everyone’s profile (not only your own row), or the Team page can only show you.
-      </p>
-
       {/* ── Members table ── */}
       <div className="db-panel tm-panel">
         {/* toolbar */}
