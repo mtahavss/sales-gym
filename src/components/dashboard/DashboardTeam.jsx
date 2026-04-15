@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import {
@@ -29,14 +29,6 @@ function RefreshIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
       <path d="M3.5 9.5A6.5 6.5 0 0 1 14 5.5M16.5 10.5A6.5 6.5 0 0 1 6 14.5M14 5.5V2M14 5.5h-3M6 14.5v3M6 14.5h3" />
-    </svg>
-  );
-}
-
-function ExternalIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-      <path d="M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9M10 2h4m0 0v4m0-4L7 9" />
     </svg>
   );
 }
@@ -84,15 +76,17 @@ export default function DashboardTeam({ user, profile }) {
   const [roleFilter, setRoleFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("top");
   const [rankBy, setRankBy] = useState("score");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [teamLoadError, setTeamLoadError] = useState("");
   /** @type {Record<string, { totalCalls: number, lastCallAt: string | null }>} */
   const [callStatsByUserId, setCallStatsByUserId] = useState({});
+  /** Selected member ids (for bulk actions). */
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const selectAllRef = useRef(null);
   const navigate = useNavigate();
 
   const isAdmin = hasPermission(profile?.role, "access_admin");
-  const tableColCount = isAdmin ? 7 : 6;
+  const tableColCount = (isAdmin ? 7 : 6) + 1;
 
   const loadMembers = useCallback(async () => {
     if (!supabase) {
@@ -206,6 +200,57 @@ export default function DashboardTeam({ user, profile }) {
     return list;
   }, [filtered, sortOrder, rankBy, callStatsByUserId]);
 
+  const visibleMemberIds = useMemo(() => displayMembers.map((m) => m.id), [displayMembers]);
+
+  useEffect(() => {
+    const allowed = new Set(displayMembers.map((m) => m.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => allowed.has(id)));
+      if (next.size === prev.size && [...prev].every((id) => next.has(id))) return prev;
+      return next;
+    });
+  }, [displayMembers]);
+
+  const selectedOnPageCount = useMemo(
+    () => visibleMemberIds.filter((id) => selectedIds.has(id)).length,
+    [visibleMemberIds, selectedIds]
+  );
+  const allVisibleSelected =
+    visibleMemberIds.length > 0 && selectedOnPageCount === visibleMemberIds.length;
+  const someVisibleSelected = selectedOnPageCount > 0 && !allVisibleSelected;
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) {
+      el.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected]);
+
+  function toggleSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleMemberIds.forEach((id) => next.delete(id));
+      } else {
+        visibleMemberIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
   return (
     <>
       <DashboardPageHero
@@ -289,11 +334,36 @@ export default function DashboardTeam({ user, profile }) {
           </div>
         </div>
 
+        {selectedIds.size > 0 ? (
+          <div className="tm-bulk-bar" role="status">
+            <span className="tm-bulk-count">
+              {selectedIds.size} member{selectedIds.size === 1 ? "" : "s"} selected
+            </span>
+            <div className="tm-bulk-actions">
+              <button type="button" className="tm-bulk-clear-btn" onClick={clearSelection}>
+                Clear selection
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* table */}
         <div className="tm-table-wrap">
           <table className="tm-table">
             <thead>
               <tr>
+                <th className="tm-select-col">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    className="tm-row-select"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    disabled={loading || visibleMemberIds.length === 0}
+                    title="Select all members in this list"
+                    aria-label="Select all members in this list"
+                  />
+                </th>
                 <th>Member</th>
                 <th>Avg Score Trend</th>
                 <th>Close Rate</th>
@@ -327,6 +397,19 @@ export default function DashboardTeam({ user, profile }) {
                       className={`tm-row-clickable${isSelf ? " tm-row-self" : ""}`}
                       onClick={() => navigate(`/dashboard/team/${m.id}`)}
                     >
+                      <td
+                        className="tm-select-cell"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          className="tm-row-select"
+                          checked={selectedIds.has(m.id)}
+                          onChange={() => toggleSelected(m.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select ${m.full_name || m.email || "member"}`}
+                        />
+                      </td>
                       <td>
                         <div className="tm-member-cell">
                           <span className="tm-avatar">{initials || "U"}</span>
@@ -397,52 +480,6 @@ export default function DashboardTeam({ user, profile }) {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* ── Settings section ── */}
-      <div className="tm-section-label">Settings</div>
-
-      <div className="db-panel tm-settings-panel">
-        <div className="tm-settings-row">
-          <div>
-            <p className="tm-settings-title">Seat Management</p>
-            <p className="tm-settings-desc">Open Stripe to manage your seat count and billing for this team.</p>
-          </div>
-          <button type="button" className="tm-stripe-btn">
-            Manage Seats <ExternalIcon />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Danger zone ── */}
-      <div className="db-panel tm-danger-panel">
-        <div className="tm-settings-row">
-          <div>
-            <p className="tm-danger-title">Delete Team</p>
-            <p className="tm-settings-desc">
-              Permanently deletes this team and <strong>all</strong> of its data. This action cannot be undone.
-            </p>
-          </div>
-          {showDeleteConfirm ? (
-            <div className="tm-confirm-row">
-              <span className="tm-confirm-label">Are you sure?</span>
-              <button type="button" className="tm-cancel-btn" onClick={() => setShowDeleteConfirm(false)}>
-                Cancel
-              </button>
-              <button type="button" className="tm-delete-confirm-btn">
-                Yes, Delete
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="tm-delete-btn"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Delete
-            </button>
-          )}
         </div>
       </div>
     </>
