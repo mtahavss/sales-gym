@@ -1,5 +1,6 @@
 -- Fix: Team page only shows yourself (or too few people)
 -- -----------------------------------------------------------------
+-- Prerequisite for soft-remove (active column): run profiles_active.sql first.
 -- The app reads public.profiles — not Logto/Auth0/etc. User lists.
 -- Compare counts in Supabase Dashboard:
 --   Authentication → Users   vs   Table Editor → profiles

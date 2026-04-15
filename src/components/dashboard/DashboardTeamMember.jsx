@@ -263,10 +263,12 @@ export default function DashboardTeamMember({ user, profile }) {
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("id, email, full_name, role, created_at")
+          .select("id, email, full_name, role, created_at, active")
           .eq("id", memberId)
           .maybeSingle();
-        setMember(data || profileFallback);
+        const row = data || profileFallback;
+        const isInactive = row && Number(row.active ?? 1) === 0;
+        setMember(isInactive ? null : row);
       } catch {
         setMember(profileFallback);
       } finally {
@@ -311,12 +313,12 @@ export default function DashboardTeamMember({ user, profile }) {
   async function handleRemoveMember() {
     if (!canRemoveMember || deleteBusy) return;
     const ok = window.confirm(
-      `Remove ${displayName} from the team? Their profile will be deleted. This cannot be undone.`
+      `Remove ${displayName} from the team? They will be hidden from the team list (active = 0).`
     );
     if (!ok) return;
     setDeleteBusy(true);
     try {
-      const { error } = await supabase.from("profiles").delete().eq("id", member.id);
+      const { error } = await supabase.from("profiles").update({ active: 0 }).eq("id", member.id);
       if (error) {
         throw new Error(error.message);
       }

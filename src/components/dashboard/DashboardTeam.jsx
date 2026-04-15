@@ -127,6 +127,7 @@ export default function DashboardTeam({ user, profile }) {
         const { data, error } = await supabase
           .from("profiles")
           .select(selectFields)
+          .eq("active", 1)
           .order("created_at", { ascending: true })
           .range(from, from + PROFILES_PAGE_SIZE - 1);
         if (error) {
@@ -294,18 +295,18 @@ export default function DashboardTeam({ user, profile }) {
       return;
     }
     const ok = window.confirm(
-      `Permanently delete ${idsToDelete.length} team member profile(s)? This cannot be undone.`
+      `Remove ${idsToDelete.length} team member(s) from the team? They will be hidden from the team list (active = 0).`
     );
     if (!ok) return;
     setBulkDeleteBusy(true);
     try {
-      const { error } = await supabase.from("profiles").delete().in("id", idsToDelete);
+      const { error } = await supabase.from("profiles").update({ active: 0 }).in("id", idsToDelete);
       if (error) throw error;
       setSelectedIds(new Set());
       await loadMembers();
       await loadCallStats();
     } catch (e) {
-      window.alert(e?.message || "Could not delete members. Check Supabase permissions (RLS).");
+      window.alert(e?.message || "Could not remove members. Check Supabase permissions (RLS) and run supabase/profiles_active.sql.");
     } finally {
       setBulkDeleteBusy(false);
     }
@@ -419,7 +420,7 @@ export default function DashboardTeam({ user, profile }) {
                   onClick={handleDeleteAllSelected}
                   disabled={bulkDeleteBusy}
                 >
-                  {bulkDeleteBusy ? "Deleting…" : "Delete All"}
+                  {bulkDeleteBusy ? "Removing…" : "Remove from team"}
                 </button>
               ) : null}
               <button

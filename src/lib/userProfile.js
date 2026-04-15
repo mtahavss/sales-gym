@@ -8,7 +8,7 @@ export async function ensureUserProfile(user) {
 
   const { data: existingProfile, error: existingError } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, avatar_url, created_at")
+    .select("id, email, full_name, role, avatar_url, created_at, active")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -30,9 +30,10 @@ export async function ensureUserProfile(user) {
       id: user.id,
       email: user.email,
       full_name: fullName,
-      role: USER_ROLES.VIEWER
+      role: USER_ROLES.VIEWER,
+      active: 1
     })
-    .select("id, email, full_name, role, avatar_url, created_at")
+    .select("id, email, full_name, role, avatar_url, created_at, active")
     .single();
 
   if (insertError) {

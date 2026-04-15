@@ -70,7 +70,10 @@ export async function fetchAllTeamTrainingSessions() {
     throw new Error("Supabase is not configured.");
   }
 
-  const { data: profiles, error: pe } = await supabase.from("profiles").select("id");
+  const { data: profiles, error: pe } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("active", 1);
   if (pe) {
     throw new Error(pe.message);
   }

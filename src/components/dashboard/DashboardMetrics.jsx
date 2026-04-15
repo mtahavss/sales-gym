@@ -116,7 +116,11 @@ export default function DashboardMetrics({ user, profile }) {
     try {
       const [sessions, { data: profs, error: pe }] = await Promise.all([
         fetchAllTeamTrainingSessions(),
-        supabase.from("profiles").select("id, email, full_name").order("created_at", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("id, email, full_name")
+          .eq("active", 1)
+          .order("created_at", { ascending: true }),
       ]);
       setTeamSessions(sessions);
       if (!pe && profs?.length) {
