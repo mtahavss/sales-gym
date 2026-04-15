@@ -29,6 +29,15 @@ create policy "profiles_update_team_manage"
   )
   with check (true);
 
+-- Users must always be able to read their own row so the app can check `active` after removal.
+drop policy if exists "profiles_select_own" on public.profiles;
+
+create policy "profiles_select_own"
+  on public.profiles
+  for select
+  to authenticated
+  using (id = (select auth.uid()));
+
 -- New auth users: ensure active = 1 (re-run after this migration if you use the trigger elsewhere).
 create or replace function public.handle_new_user()
 returns trigger

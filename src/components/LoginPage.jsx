@@ -1,5 +1,5 @@
 import "./LoginPage.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getAuthSiteUrl, missingSupabaseMessage, supabase } from "../lib/supabaseClient";
 
@@ -26,6 +26,16 @@ export default function LoginPage({ onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined") {
+      return;
+    }
+    if (sessionStorage.getItem("salesgym:access_revoked")) {
+      sessionStorage.removeItem("salesgym:access_revoked");
+      setInfo("Your access to this workspace has been removed. Contact an administrator if you think this is a mistake.");
+    }
+  }, []);
 
   async function handleGoogleLogin() {
     setError("");

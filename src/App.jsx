@@ -18,7 +18,7 @@ import ResetPasswordPage from "./components/ResetPasswordPage";
 import AdminPage from "./components/AdminPage";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 import { hasPermission } from "./lib/rbac";
-import { ensureUserProfile } from "./lib/userProfile";
+import { ensureUserProfile, isProfileInactiveError } from "./lib/userProfile";
 import { DateRangeProvider } from "./lib/DateRangeContext";
 import ThemeSpinner from "./components/ThemeSpinner";
 
@@ -138,27 +138,75 @@ export default function App() {
 
     Promise.race([ensureUserProfile(user), timeoutPromise])
       .then((profileRow) => {
-        if (mounted) {
-          setProfile(profileRow);
-        }
-      })
-      .catch(() => {
-        if (mounted) {
-          setProfile(fallbackProfile);
-        }
-      })
-      .finally(() => {
         window.clearTimeout(timeoutId);
-        if (mounted) {
+        if (!mounted) {
+          return;
+        }
+        setProfile(profileRow);
+        setProfileReady(true);
+        loadedProfileKeyRef.current = profileKey;
+      })
+      .catch((e) => {
+        window.clearTimeout(timeoutId);
+        if (!mounted) {
+          return;
+        }
+        if (isProfileInactiveError(e)) {
+          sessionStorage.setItem("salesgym:access_revoked", "1");
+          supabase.auth.signOut().then(() => {
+            if (!mounted) {
+              return;
+            }
+            setUser(null);
+            setProfile(null);
+            setProfileReady(true);
+            loadedProfileKeyRef.current = null;
+          });
+          return;
+        }
+        if (e?.message === "profile-timeout") {
+          setProfile(fallbackProfile);
           setProfileReady(true);
           loadedProfileKeyRef.current = profileKey;
+          return;
         }
+        setProfile(fallbackProfile);
+        setProfileReady(true);
+        loadedProfileKeyRef.current = profileKey;
       });
 
     return () => {
       mounted = false;
     };
   }, [user]);
+
+  /** While logged in, detect if an admin set `profiles.active` to 0 (removed from team). */
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !user || !profile) {
+      return undefined;
+    }
+    const uid = user.id;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) {
+        return;
+      }
+      const { data, error } = await supabase.from("profiles").select("active").eq("id", uid).maybeSingle();
+      if (cancelled || error || !data) {
+        return;
+      }
+      if (Number(data.active ?? 1) === 0) {
+        sessionStorage.setItem("salesgym:access_revoked", "1");
+        await supabase.auth.signOut();
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [user?.id, profile?.id]);
 
   if (!authReady || !profileReady) {
     return (
