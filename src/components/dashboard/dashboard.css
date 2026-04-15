@@ -2138,6 +2138,37 @@
   border-color: rgba(248, 113, 113, 0.4);
 }
 
+.tm-team-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+}
+
+.tm-team-hint-code {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid #fcd34d;
+}
+
+.dashboard-shell.is-dark .tm-team-hint {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.35);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.dashboard-shell.is-dark .tm-team-hint-code {
+  color: #fef3c7;
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
 .tm-table-wrap {
   overflow-x: auto;
 }
@@ -2226,6 +2257,29 @@
   color: #1e293b;
 }
 
+.tm-bulk-clear-btn:disabled,
+.tm-bulk-delete-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tm-bulk-delete-btn {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff1f2;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.tm-bulk-delete-btn:hover:not(:disabled) {
+  background: #ffe4e6;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
 .tm-table .tm-select-col,
 .tm-table .tm-select-cell {
   width: 2.5rem;
@@ -2263,6 +2317,18 @@
   border: 1px solid #fdba74;
 }
 
+.tm-avatar--photo {
+  display: block;
+  object-fit: cover;
+  padding: 0;
+  background: #fff7ed;
+}
+
+.dashboard-shell.is-dark .tm-avatar--photo {
+  background: #292524;
+  border-color: #57534e;
+}
+
 .tm-member-info {
   display: flex;
   flex-direction: column;
@@ -2286,6 +2352,16 @@
   color: #c2410c;
   border-radius: 4px;
   padding: 0.05rem 0.3rem;
+}
+
+.tm-role-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
 }
 
 .tm-member-email {
@@ -2555,6 +2631,18 @@
   color: #fafafa;
 }
 
+.dashboard-shell.is-dark .tm-bulk-delete-btn {
+  background: rgba(127, 29, 29, 0.35);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.dashboard-shell.is-dark .tm-bulk-delete-btn:hover:not(:disabled) {
+  background: rgba(127, 29, 29, 0.5);
+  border-color: #f87171;
+  color: #fff;
+}
+
 .dashboard-shell.is-dark .tm-session-online {
   color: #86efac;
 }
@@ -2582,6 +2670,11 @@
 .dashboard-shell.is-dark .tm-muted,
 .dashboard-shell.is-dark .tm-seats-label {
   color: #94a3b8;
+}
+
+.dashboard-shell.is-dark .tm-role-pill {
+  color: #e2e8f0;
+  background: #334155;
 }
 
 /* ── Team Member detail page ─────────────────────────────── */

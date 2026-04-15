@@ -6,7 +6,7 @@ import {
   fetchTrainingSessionsForUserIds,
   TRAINING_SESSIONS_CHANGED_EVENT,
 } from "../../lib/trainingSessions";
-import { hasPermission } from "../../lib/rbac";
+import { hasPermission, normalizeRole } from "../../lib/rbac";
 import {
   formatLastSeenRelative,
   isUserOnline,
@@ -68,6 +68,26 @@ const RANK_OPTIONS = [
   { value: "calls", label: "Call count" },
 ];
 
+/** PostgREST pages; load every row so admins see the full team list. */
+const PROFILES_PAGE_SIZE = 1000;
+
+function TeamMemberAvatar({ fullName, email, avatarUrl, oauthAvatarFallback }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const initials = getInitials(fullName || email || "U");
+  const src = (avatarUrl || oauthAvatarFallback || "").trim();
+  if (src && !imgFailed) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="tm-avatar tm-avatar--photo"
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+  return <span className="tm-avatar">{initials || "U"}</span>;
+}
+
 /* ── Component ────────────────────────────────────────────── */
 export default function DashboardTeam({ user, profile }) {
   const [members, setMembers] = useState([]);
@@ -82,11 +102,13 @@ export default function DashboardTeam({ user, profile }) {
   const [callStatsByUserId, setCallStatsByUserId] = useState({});
   /** Selected member ids (for bulk actions). */
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
   const selectAllRef = useRef(null);
   const navigate = useNavigate();
 
   const isAdmin = hasPermission(profile?.role, "access_admin");
-  const tableColCount = (isAdmin ? 7 : 6) + 1;
+  /** checkbox + columns (+ Role when admin) */
+  const tableColCount = (isAdmin ? 8 : 6) + 1;
 
   const loadMembers = useCallback(async () => {
     if (!supabase) {
@@ -97,17 +119,28 @@ export default function DashboardTeam({ user, profile }) {
     setLoading(true);
     setTeamLoadError("");
     const selectFields = isAdmin
-      ? "id, email, full_name, role, created_at, last_seen_at"
-      : "id, email, full_name, role, created_at";
+      ? "id, email, full_name, role, avatar_url, created_at, last_seen_at"
+      : "id, email, full_name, role, avatar_url, created_at";
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(selectFields)
-        .order("created_at", { ascending: true });
-      if (error) {
-        throw error;
+      const rows = [];
+      for (let from = 0; ; from += PROFILES_PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(selectFields)
+          .order("created_at", { ascending: true })
+          .range(from, from + PROFILES_PAGE_SIZE - 1);
+        if (error) {
+          throw error;
+        }
+        if (!data?.length) {
+          break;
+        }
+        rows.push(...data);
+        if (data.length < PROFILES_PAGE_SIZE) {
+          break;
+        }
       }
-      setMembers(data?.length ? data : profile ? [profile] : []);
+      setMembers(rows.length ? rows : profile ? [profile] : []);
     } catch (e) {
       const msg = e?.message || "Could not load team members.";
       setTeamLoadError(msg);
@@ -251,6 +284,33 @@ export default function DashboardTeam({ user, profile }) {
     setSelectedIds(new Set());
   }
 
+  async function handleDeleteAllSelected() {
+    if (!supabase || !isAdmin || bulkDeleteBusy) return;
+    const idsToDelete = [...selectedIds].filter((id) => id !== user?.id);
+    if (idsToDelete.length === 0) {
+      window.alert(
+        "You can't remove your own account with bulk delete. Deselect yourself or remove teammates individually from their profile page."
+      );
+      return;
+    }
+    const ok = window.confirm(
+      `Permanently delete ${idsToDelete.length} team member profile(s)? This cannot be undone.`
+    );
+    if (!ok) return;
+    setBulkDeleteBusy(true);
+    try {
+      const { error } = await supabase.from("profiles").delete().in("id", idsToDelete);
+      if (error) throw error;
+      setSelectedIds(new Set());
+      await loadMembers();
+      await loadCallStats();
+    } catch (e) {
+      window.alert(e?.message || "Could not delete members. Check Supabase permissions (RLS).");
+    } finally {
+      setBulkDeleteBusy(false);
+    }
+  }
+
   return (
     <>
       <DashboardPageHero
@@ -278,6 +338,18 @@ export default function DashboardTeam({ user, profile }) {
       {teamLoadError ? (
         <div className="tm-team-error" role="alert">
           {teamLoadError}
+        </div>
+      ) : null}
+
+      {isAdmin && supabase && !loading && !teamLoadError && members.length === 1 ? (
+        <div className="tm-team-hint" role="note">
+          <strong>Seeing only yourself?</strong> This list comes from the Supabase{" "}
+          <code className="tm-team-hint-code">profiles</code> table. Compare{" "}
+          <strong>Supabase → Authentication → Users</strong> with{" "}
+          <strong>Table Editor → profiles</strong> — counts should match. If Auth has more users, or
+          teammates are hidden, run{" "}
+          <code className="tm-team-hint-code">supabase/profiles_team_complete.sql</code> in the
+          Supabase SQL Editor, then refresh.
         </div>
       ) : null}
 
@@ -318,7 +390,7 @@ export default function DashboardTeam({ user, profile }) {
           </div>
 
           <div className="tm-seats-row">
-            <span className="tm-seats-label">{members.length} of {members.length} seats used</span>
+            <span className="tm-seats-label">{members.length} member{members.length === 1 ? "" : "s"} in workspace</span>
             <button
               type="button"
               className="tm-icon-btn"
@@ -340,7 +412,22 @@ export default function DashboardTeam({ user, profile }) {
               {selectedIds.size} member{selectedIds.size === 1 ? "" : "s"} selected
             </span>
             <div className="tm-bulk-actions">
-              <button type="button" className="tm-bulk-clear-btn" onClick={clearSelection}>
+              {isAdmin && supabase ? (
+                <button
+                  type="button"
+                  className="tm-bulk-delete-btn"
+                  onClick={handleDeleteAllSelected}
+                  disabled={bulkDeleteBusy}
+                >
+                  {bulkDeleteBusy ? "Deleting…" : "Delete All"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="tm-bulk-clear-btn"
+                onClick={clearSelection}
+                disabled={bulkDeleteBusy}
+              >
                 Clear selection
               </button>
             </div>
@@ -365,6 +452,7 @@ export default function DashboardTeam({ user, profile }) {
                   />
                 </th>
                 <th>Member</th>
+                {isAdmin ? <th>Role</th> : null}
                 <th>Avg Score Trend</th>
                 <th>Close Rate</th>
                 <th>Last Call</th>
@@ -388,7 +476,6 @@ export default function DashboardTeam({ user, profile }) {
                 </tr>
               ) : (
                 displayMembers.map((m) => {
-                  const initials = getInitials(m.full_name || m.email || "U");
                   const isSelf = m.id === user?.id;
                   const lastCallAt = callStatsByUserId[m.id]?.lastCallAt;
                   return (
@@ -412,7 +499,12 @@ export default function DashboardTeam({ user, profile }) {
                       </td>
                       <td>
                         <div className="tm-member-cell">
-                          <span className="tm-avatar">{initials || "U"}</span>
+                          <TeamMemberAvatar
+                            fullName={m.full_name}
+                            email={m.email}
+                            avatarUrl={m.avatar_url}
+                            oauthAvatarFallback={isSelf ? user?.user_metadata?.avatar_url : undefined}
+                          />
                           <div className="tm-member-info">
                             <span className="tm-member-name">
                               {m.full_name || m.email?.split("@")[0] || "User"}
@@ -422,6 +514,13 @@ export default function DashboardTeam({ user, profile }) {
                           </div>
                         </div>
                       </td>
+                      {isAdmin ? (
+                        <td>
+                          <span className="tm-role-pill" title={`Workspace role: ${ROLE_LABELS[normalizeRole(m.role)] || normalizeRole(m.role)}`}>
+                            {ROLE_LABELS[normalizeRole(m.role)] || normalizeRole(m.role)}
+                          </span>
+                        </td>
+                      ) : null}
                       <td className="tm-muted">—</td>
                       <td className="tm-muted">0%</td>
                       <td>

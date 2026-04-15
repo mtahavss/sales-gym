@@ -1,7 +1,7 @@
 import "./LoginPage.css";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { missingSupabaseMessage, supabase } from "../lib/supabaseClient";
+import { getAuthSiteUrl, missingSupabaseMessage, supabase } from "../lib/supabaseClient";
 
 function GoogleLogo() {
   return (
@@ -39,7 +39,7 @@ export default function LoginPage({ onAuthSuccess }) {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin
+        redirectTo: getAuthSiteUrl()
       }
     });
 
@@ -53,7 +53,6 @@ export default function LoginPage({ onAuthSuccess }) {
     setError("");
     setInfo("");
     setLoading(true);
-console.log("handleEmailAuth", email, password);
     try {
       if (!supabase) {
         throw new Error(missingSupabaseMessage);
@@ -106,7 +105,7 @@ console.log("handleEmailAuth", email, password);
 
     setLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: `${getAuthSiteUrl()}/reset-password`
     });
     setLoading(false);
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { getAuthSiteUrl, supabase } from "../../lib/supabaseClient";
 
 /* ── Icons ────────────────────────────────────────────────── */
 function CheckIcon() {
@@ -86,7 +86,7 @@ function SecurityTab({ email }) {
     setResetError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${getAuthSiteUrl()}/reset-password`
       });
       if (error) throw error;
       setResetSent(true);
