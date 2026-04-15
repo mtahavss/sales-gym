@@ -635,7 +635,12 @@ export default function DashboardTeam({ user, profile }) {
                               Away · {formatLastSeenRelative(m.last_seen_at, nowMs)}
                             </span>
                           ) : (
-                            <span className="tm-muted">—</span>
+                            <span
+                              className="tm-muted"
+                              title="No heartbeat yet — shows Online or Away once they have the dashboard open and presence is enabled in Supabase."
+                            >
+                              Not seen yet
+                            </span>
                           )}
                         </td>
                       ) : null}

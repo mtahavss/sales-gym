@@ -46,24 +46,36 @@ export function startPresenceHeartbeat(userId) {
 
   async function ping() {
     if (cancelled) return;
-    const ts = new Date().toISOString();
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ last_seen_at: ts })
-      .eq("id", userId)
-      .select("id");
-    if (error) {
-      if (import.meta.env.DEV) {
-        console.warn("[presence] last_seen_at update failed:", error.message);
+
+    let success = false;
+    const { error: rpcError } = await supabase.rpc("touch_my_presence");
+    if (!rpcError) {
+      success = true;
+    } else {
+      const ts = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ last_seen_at: ts })
+        .eq("id", userId)
+        .select("id");
+      if (!error) {
+        success = true;
+        if (!data?.length && import.meta.env.DEV) {
+          console.warn(
+            "[presence] 0 rows updated. Run supabase/profiles_touch_presence_rpc.sql in Supabase SQL Editor."
+          );
+        }
+      } else if (import.meta.env.DEV) {
+        console.warn("[presence] fallback update failed:", error.message);
       }
-      return;
+      if (!success && import.meta.env.DEV) {
+        console.warn("[presence] touch_my_presence RPC failed:", rpcError.message);
+      }
     }
-    if (!data?.length && import.meta.env.DEV) {
-      console.warn(
-        "[presence] 0 rows updated (RLS or missing row). Run supabase/profiles_presence_update_rls.sql in Supabase."
-      );
+
+    if (success) {
+      window.dispatchEvent(new CustomEvent(PRESENCE_PING_EVENT, { detail: { at: Date.now() } }));
     }
-    window.dispatchEvent(new CustomEvent(PRESENCE_PING_EVENT, { detail: { at: Date.now() } }));
   }
 
   ping();
