@@ -1826,6 +1826,15 @@
   background: linear-gradient(180deg, #fffbf3 0%, #fff7ed 100%);
 }
 
+.tm-member-only-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
 .tm-search-wrap {
   position: relative;
   display: flex;
@@ -2464,6 +2473,10 @@
 .dashboard-shell.is-dark .tm-toolbar {
   background: #141414;
   border-bottom-color: #262626;
+}
+
+.dashboard-shell.is-dark .tm-member-only-hint {
+  color: #94a3b8;
 }
 
 .dashboard-shell.is-dark .tm-table thead tr,

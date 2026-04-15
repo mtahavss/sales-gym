@@ -10,6 +10,8 @@ import { hasPermission, normalizeRole } from "../../lib/rbac";
 import {
   formatLastSeenRelative,
   isUserOnline,
+  ONLINE_THRESHOLD_MS,
+  PRESENCE_PING_EVENT,
 } from "../../lib/userPresence";
 import DashboardPageHero from "./DashboardPageHero";
 import ThemeSpinner from "../ThemeSpinner";
@@ -104,11 +106,14 @@ export default function DashboardTeam({ user, profile }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
   const selectAllRef = useRef(null);
+  const lastTeamPresenceRefreshRef = useRef(0);
   const navigate = useNavigate();
+  /** Local heartbeat times so your own Session row shows Online even before the team list refetches. */
+  const [lastLocalPresenceMs, setLastLocalPresenceMs] = useState(() => Date.now());
 
   const isAdmin = hasPermission(profile?.role, "access_admin");
-  /** checkbox + columns (+ Role when admin) */
-  const tableColCount = (isAdmin ? 8 : 6) + 1;
+  /** Admins: checkbox + columns (+ Role + Session). Members: own row only, no checkbox column. */
+  const tableColCount = isAdmin ? (8 + 1) : 6;
 
   const loadMembers = useCallback(async () => {
     if (!supabase) {
@@ -122,6 +127,23 @@ export default function DashboardTeam({ user, profile }) {
       ? "id, email, full_name, role, avatar_url, created_at, last_seen_at"
       : "id, email, full_name, role, avatar_url, created_at";
     try {
+      if (!isAdmin) {
+        if (!user?.id) {
+          setMembers([]);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(selectFields)
+          .eq("active", 1)
+          .eq("id", user.id)
+          .maybeSingle();
+        if (error) {
+          throw error;
+        }
+        setMembers(data ? [data] : profile?.id === user.id ? [profile] : []);
+        return;
+      }
       const rows = [];
       for (let from = 0; ; from += PROFILES_PAGE_SIZE) {
         const { data, error } = await supabase
@@ -149,7 +171,7 @@ export default function DashboardTeam({ user, profile }) {
     } finally {
       setLoading(false);
     }
-  }, [profile, isAdmin]);
+  }, [profile, isAdmin, user?.id]);
 
   useEffect(() => {
     loadMembers();
@@ -189,19 +211,48 @@ export default function DashboardTeam({ user, profile }) {
   }, [loadCallStats]);
 
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
-    if (!isAdmin || !supabase) {
+    if (!user?.id) {
+      return undefined;
+    }
+    setLastLocalPresenceMs(Date.now());
+    function onPresencePing() {
+      setLastLocalPresenceMs(Date.now());
+    }
+    window.addEventListener(PRESENCE_PING_EVENT, onPresencePing);
+    return () => window.removeEventListener(PRESENCE_PING_EVENT, onPresencePing);
+  }, [user?.id]);
+
+  /** After a successful presence write, refresh the roster so `last_seen_at` matches the DB (admins). */
+  useEffect(() => {
+    if (!isAdmin) {
+      return undefined;
+    }
+    function onPresencePing() {
+      const t = Date.now();
+      if (t - lastTeamPresenceRefreshRef.current < 20_000) {
+        return;
+      }
+      lastTeamPresenceRefreshRef.current = t;
+      loadMembers();
+    }
+    window.addEventListener(PRESENCE_PING_EVENT, onPresencePing);
+    return () => window.removeEventListener(PRESENCE_PING_EVENT, onPresencePing);
+  }, [isAdmin, loadMembers]);
+
+  useEffect(() => {
+    if (!supabase) {
       return undefined;
     }
     const id = setInterval(() => {
       loadMembers();
-    }, 45_000);
+    }, 30_000);
     return () => clearInterval(id);
-  }, [isAdmin, loadMembers]);
+  }, [loadMembers]);
 
   const filtered = members.filter((m) => {
     const q = search.toLowerCase();
@@ -317,7 +368,11 @@ export default function DashboardTeam({ user, profile }) {
       <DashboardPageHero
         eyebrow="Manage"
         title="Team"
-        subtitle="Invite members, assign roles, and keep your workspace seats organized."
+        subtitle={
+          isAdmin
+            ? "Invite members, assign roles, and keep your workspace seats organized."
+            : "Your workspace profile. The full team roster and management tools are available to admins only."
+        }
         helpLink={{
           href: "#",
           label: "Team & roles · View docs",
@@ -358,40 +413,50 @@ export default function DashboardTeam({ user, profile }) {
       <div className="db-panel tm-panel">
         {/* toolbar */}
         <div className="tm-toolbar">
-          <div className="tm-search-wrap">
-            <SearchIcon />
-            <input
-              className="tm-search-input"
-              type="text"
-              placeholder="Search members..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          {isAdmin ? (
+            <>
+              <div className="tm-search-wrap">
+                <SearchIcon />
+                <input
+                  className="tm-search-input"
+                  type="text"
+                  placeholder="Search members..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
-          <div className="tm-filters">
-            <ThemedMenuSelect
-              className="tm-menu-select--roles"
-              value={roleFilter}
-              onChange={setRoleFilter}
-              options={ROLE_FILTER_OPTIONS}
-            />
-            <ThemedMenuSelect
-              className="tm-menu-select--sort"
-              value={sortOrder}
-              onChange={setSortOrder}
-              options={SORT_OPTIONS}
-            />
-            <ThemedMenuSelect
-              className="tm-menu-select--rank"
-              value={rankBy}
-              onChange={setRankBy}
-              options={RANK_OPTIONS}
-            />
-          </div>
+              <div className="tm-filters">
+                <ThemedMenuSelect
+                  className="tm-menu-select--roles"
+                  value={roleFilter}
+                  onChange={setRoleFilter}
+                  options={ROLE_FILTER_OPTIONS}
+                />
+                <ThemedMenuSelect
+                  className="tm-menu-select--sort"
+                  value={sortOrder}
+                  onChange={setSortOrder}
+                  options={SORT_OPTIONS}
+                />
+                <ThemedMenuSelect
+                  className="tm-menu-select--rank"
+                  value={rankBy}
+                  onChange={setRankBy}
+                  options={RANK_OPTIONS}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="tm-member-only-hint">You can only see your own row here.</p>
+          )}
 
           <div className="tm-seats-row">
-            <span className="tm-seats-label">{members.length} member{members.length === 1 ? "" : "s"} in workspace</span>
+            <span className="tm-seats-label">
+              {isAdmin
+                ? `${members.length} member${members.length === 1 ? "" : "s"} in workspace`
+                : "Your profile"}
+            </span>
             <button
               type="button"
               className="tm-icon-btn"
@@ -407,13 +472,13 @@ export default function DashboardTeam({ user, profile }) {
           </div>
         </div>
 
-        {selectedIds.size > 0 ? (
+        {isAdmin && selectedIds.size > 0 ? (
           <div className="tm-bulk-bar" role="status">
             <span className="tm-bulk-count">
               {selectedIds.size} member{selectedIds.size === 1 ? "" : "s"} selected
             </span>
             <div className="tm-bulk-actions">
-              {isAdmin && supabase ? (
+              {supabase ? (
                 <button
                   type="button"
                   className="tm-bulk-delete-btn"
@@ -440,18 +505,20 @@ export default function DashboardTeam({ user, profile }) {
           <table className="tm-table">
             <thead>
               <tr>
-                <th className="tm-select-col">
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    className="tm-row-select"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                    disabled={loading || visibleMemberIds.length === 0}
-                    title="Select all members in this list"
-                    aria-label="Select all members in this list"
-                  />
-                </th>
+                {isAdmin ? (
+                  <th className="tm-select-col">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      className="tm-row-select"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                      disabled={loading || visibleMemberIds.length === 0}
+                      title="Select all members in this list"
+                      aria-label="Select all members in this list"
+                    />
+                  </th>
+                ) : null}
                 <th>Member</th>
                 {isAdmin ? <th>Role</th> : null}
                 <th>Avg Score Trend</th>
@@ -479,25 +546,32 @@ export default function DashboardTeam({ user, profile }) {
                 displayMembers.map((m) => {
                   const isSelf = m.id === user?.id;
                   const lastCallAt = callStatsByUserId[m.id]?.lastCallAt;
+                  const sessionOnline =
+                    isUserOnline(m.last_seen_at, nowMs) ||
+                    (isSelf &&
+                      lastLocalPresenceMs > 0 &&
+                      nowMs - lastLocalPresenceMs <= ONLINE_THRESHOLD_MS);
                   return (
                     <tr
                       key={m.id}
                       className={`tm-row-clickable${isSelf ? " tm-row-self" : ""}`}
                       onClick={() => navigate(`/dashboard/team/${m.id}`)}
                     >
-                      <td
-                        className="tm-select-cell"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          className="tm-row-select"
-                          checked={selectedIds.has(m.id)}
-                          onChange={() => toggleSelected(m.id)}
+                      {isAdmin ? (
+                        <td
+                          className="tm-select-cell"
                           onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${m.full_name || m.email || "member"}`}
-                        />
-                      </td>
+                        >
+                          <input
+                            type="checkbox"
+                            className="tm-row-select"
+                            checked={selectedIds.has(m.id)}
+                            onChange={() => toggleSelected(m.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Select ${m.full_name || m.email || "member"}`}
+                          />
+                        </td>
+                      ) : null}
                       <td>
                         <div className="tm-member-cell">
                           <TeamMemberAvatar
@@ -548,7 +622,7 @@ export default function DashboardTeam({ user, profile }) {
                       </td>
                       {isAdmin ? (
                         <td>
-                          {isUserOnline(m.last_seen_at, nowMs) ? (
+                          {sessionOnline ? (
                             <span className="tm-session-badge tm-session-online">
                               <span className="tm-session-dot" aria-hidden="true" />
                               Online

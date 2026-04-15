@@ -1,9 +1,15 @@
 import { supabase } from "./supabaseClient";
 
-const HEARTBEAT_MS = 60_000;
+/** Event name: fired after a successful `last_seen_at` write (Team page can refresh). */
+export const PRESENCE_PING_EVENT = "salesgym:presence-ping";
 
-/** If `last_seen_at` is newer than this, treat the user as on the platform (admin Team view). */
-export const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+const HEARTBEAT_MS = 30_000;
+
+/**
+ * If `last_seen_at` is newer than this, treat the user as online (admin Team view).
+ * Must exceed heartbeat interval + typical list refresh delay so active users still show Online.
+ */
+export const ONLINE_THRESHOLD_MS = 6 * 60 * 1000;
 
 export function isUserOnline(lastSeenAt, nowMs = Date.now()) {
   if (!lastSeenAt) return false;
@@ -40,13 +46,24 @@ export function startPresenceHeartbeat(userId) {
 
   async function ping() {
     if (cancelled) return;
-    const { error } = await supabase
+    const ts = new Date().toISOString();
+    const { data, error } = await supabase
       .from("profiles")
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq("id", userId);
-    if (error && import.meta.env.DEV) {
-      console.debug("[presence] last_seen_at update:", error.message);
+      .update({ last_seen_at: ts })
+      .eq("id", userId)
+      .select("id");
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[presence] last_seen_at update failed:", error.message);
+      }
+      return;
     }
+    if (!data?.length && import.meta.env.DEV) {
+      console.warn(
+        "[presence] 0 rows updated (RLS or missing row). Run supabase/profiles_presence_update_rls.sql in Supabase."
+      );
+    }
+    window.dispatchEvent(new CustomEvent(PRESENCE_PING_EVENT, { detail: { at: Date.now() } }));
   }
 
   ping();

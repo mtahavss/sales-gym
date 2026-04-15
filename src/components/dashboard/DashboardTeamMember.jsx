@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { hasPermission } from "../../lib/rbac";
 import { useDateRange, inRange, formatDateShort } from "../../lib/DateRangeContext";
@@ -295,6 +295,10 @@ export default function DashboardTeamMember({ user, profile }) {
         </button>
       </div>
     );
+  }
+
+  if (!hasPermission(profile?.role, "access_admin") && member.id !== user?.id) {
+    return <Navigate to="/dashboard/team" replace />;
   }
 
   const displayName = member.full_name || member.email?.split("@")[0] || "Team Member";
